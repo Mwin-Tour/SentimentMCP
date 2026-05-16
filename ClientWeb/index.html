@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SentimentMCP — Analyse de sentiment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: #1e1e2e;
+    --accent-pos: #00ff9d;
+    --accent-neg: #ff3366;
+    --accent-neu: #7b8cde;
+    --text: #e8e8f0;
+    --muted: #555570;
+    --glow-pos: rgba(0,255,157,0.15);
+    --glow-neg: rgba(255,51,102,0.15);
+    --glow-neu: rgba(123,140,222,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* === BACKGROUND GRID === */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(30,30,60,0.3) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(30,30,60,0.3) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* === NOISE TEXTURE === */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    opacity: 0.4;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 60px 24px 100px;
+  }
+
+  /* === HEADER === */
+  header {
+    margin-bottom: 64px;
+    animation: fadeDown 0.6s ease both;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    border-radius: 2px;
+    margin-bottom: 28px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .badge .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-pos);
+    box-shadow: 0 0 8px var(--accent-pos);
+    animation: pulse 2s ease infinite;
+  }
+
+  .badge.offline .dot {
+    background: var(--muted);
+    box-shadow: none;
+    animation: none;
+  }
+
+  h1 {
+    font-size: clamp(40px, 6vw, 72px);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    margin-bottom: 16px;
+  }
+
+  h1 span {
+    display: block;
+    background: linear-gradient(135deg, #fff 0%, var(--muted) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  h1 .accent {
+    background: linear-gradient(135deg, var(--accent-pos) 0%, var(--accent-neu) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 15px;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 0.02em;
+  }
+
+  /* === ANALYZER === */
+  .analyzer {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 32px;
+    margin-bottom: 48px;
+    animation: fadeUp 0.6s 0.1s ease both;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .analyzer::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-pos), transparent);
+    opacity: 0.5;
+  }
+
+  .analyzer-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 16px;
+  }
+
+  textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    padding: 20px;
+    resize: vertical;
+    min-height: 120px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+  }
+
+  textarea:focus {
+    border-color: var(--accent-neu);
+    box-shadow: 0 0 0 3px rgba(123,140,222,0.1);
+  }
+
+  textarea::placeholder {
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 16px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .char-count {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .btn-analyze {
+    background: var(--text);
+    color: var(--bg);
+    border: none;
+    padding: 14px 32px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-analyze:hover:not(:disabled) {
+    background: var(--accent-pos);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(0,255,157,0.3);
+  }
+
+  .btn-analyze:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-analyze .spinner {
+    display: none;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(0,0,0,0.3);
+    border-top-color: var(--bg);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin-right: 8px;
+  }
+
+  .btn-analyze.loading .spinner { display: inline-block; }
+  .btn-analyze.loading .btn-text { opacity: 0.7; }
+
+  /* === RESULT === */
+  .result-card {
+    display: none;
+    margin-top: 28px;
+    border-radius: 4px;
+    padding: 28px;
+    border: 1px solid;
+    animation: resultIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .result-card.positif {
+    border-color: var(--accent-pos);
+    background: var(--glow-pos);
+  }
+  .result-card.negatif {
+    border-color: var(--accent-neg);
+    background: var(--glow-neg);
+  }
+  .result-card.neutre {
+    border-color: var(--accent-neu);
+    background: var(--glow-neu);
+  }
+  .result-card.error {
+    border-color: #ff6b35;
+    background: rgba(255,107,53,0.1);
+  }
+
+  .result-top {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .sentiment-icon {
+    font-size: 48px;
+    line-height: 1;
+  }
+
+  .sentiment-label {
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+  }
+
+  .result-card.positif .sentiment-label { color: var(--accent-pos); }
+  .result-card.negatif .sentiment-label { color: var(--accent-neg); }
+  .result-card.neutre .sentiment-label { color: var(--accent-neu); }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin-bottom: 20px;
+  }
+
+  .result-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .meta-item {
+    background: rgba(10,10,15,0.5);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 16px;
+  }
+
+  .meta-key {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+
+  .meta-val {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text);
+  }
+
+  .meta-item.full { grid-column: 1 / -1; }
+
+  /* === HISTORY === */
+  .section-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: fadeUp 0.6s 0.2s ease both;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .history-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: fadeUp 0.6s 0.3s ease both;
+  }
+
+  .history-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 16px 20px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .history-item:hover {
+    border-color: var(--muted);
+    transform: translateX(4px);
+  }
+
+  .history-text {
+    font-size: 14px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .history-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 4px 10px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  .badge-positif { color: var(--accent-pos); border: 1px solid var(--accent-pos); background: rgba(0,255,157,0.07); }
+  .badge-negatif { color: var(--accent-neg); border: 1px solid var(--accent-neg); background: rgba(255,51,102,0.07); }
+  .badge-neutre  { color: var(--accent-neu); border: 1px solid var(--accent-neu); background: rgba(123,140,222,0.07); }
+  .badge-pending { color: var(--muted); border: 1px solid var(--border); }
+
+  /* === COMMENTS SECTION === */
+  .comments-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    animation: fadeUp 0.6s 0.35s ease both;
+  }
+
+  .btn-load {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent-neu);
+    border: 1px solid var(--accent-neu);
+    background: none;
+    padding: 8px 16px;
+    cursor: pointer;
+    border-radius: 2px;
+    letter-spacing: 0.06em;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+
+  .btn-load:hover { background: rgba(123,140,222,0.1); }
+
+  .comments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: fadeUp 0.6s 0.4s ease both;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  .comments-list::-webkit-scrollbar { width: 4px; }
+  .comments-list::-webkit-scrollbar-track { background: var(--bg); }
+  .comments-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .comment-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 16px 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .comment-card:hover {
+    border-color: var(--muted);
+    background: rgba(30,30,46,0.8);
+  }
+
+  .comment-author {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--accent-neu);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .comment-text {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  .comment-meta {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  /* === FOOTER === */
+  footer {
+    margin-top: 80px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    animation: fadeUp 0.6s 0.5s ease both;
+  }
+
+  /* === ANIMATIONS === */
+  @keyframes fadeDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:none; } }
+  @keyframes fadeUp   { from { opacity:0; transform:translateY(20px);  } to { opacity:1; transform:none; } }
+  @keyframes pulse    { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+  @keyframes spin     { to { transform:rotate(360deg); } }
+  @keyframes resultIn { from { opacity:0; transform:scale(0.97) translateY(8px); } to { opacity:1; transform:none; } }
+
+  /* === RESPONSIVE === */
+  @media (max-width: 600px) {
+    .result-meta { grid-template-columns: 1fr; }
+    .meta-item.full { grid-column: 1; }
+    footer { flex-direction: column; gap: 8px; text-align: center; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <header>
+    <div class="badge" id="statusBadge">
+      <span class="dot"></span>
+      <span id="statusText">Connexion au serveur…</span>
+    </div>
+    <h1>
+      <span>Sentiment</span>
+      <span class="accent">MCP</span>
+    </h1>
+    <p class="subtitle">// Analyse de sentiment via Ollama + Model Context Protocol</p>
+  </header>
+
+  <!-- ANALYZER -->
+  <div class="analyzer">
+    <div class="analyzer-label">// Entrez un texte à analyser</div>
+    <textarea
+      id="inputText"
+      placeholder="Exemple : Ce gouvernement fait un travail remarquable pour le pays…"
+      maxlength="2000"
+    ></textarea>
+    <div class="controls">
+      <span class="char-count"><span id="charCount">0</span> / 2000</span>
+      <button class="btn-analyze" id="analyzeBtn" onclick="analyzeText()">
+        <span class="spinner"></span>
+        <span class="btn-text">Analyser →</span>
+      </button>
+    </div>
+
+    <!-- RESULT -->
+    <div class="result-card" id="resultCard">
+      <div class="result-top">
+        <div class="sentiment-icon" id="resultIcon"></div>
+        <div class="sentiment-label" id="resultLabel"></div>
+      </div>
+      <div class="divider"></div>
+      <div class="result-meta">
+        <div class="meta-item full">
+          <div class="meta-key">Texte analysé</div>
+          <div class="meta-val" id="resultText" style="font-style:italic; color:var(--muted);"></div>
+        </div>
+        <div class="meta-item full">
+          <div class="meta-key">Justification</div>
+          <div class="meta-val" id="resultJustification"></div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-key">Modèle</div>
+          <div class="meta-val" id="resultModel" style="font-family:'Space Mono',monospace; font-size:12px;">—</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-key">Temps de réponse</div>
+          <div class="meta-val" id="resultTime" style="font-family:'Space Mono',monospace; font-size:12px;">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div id="historySection" style="display:none; margin-bottom:48px;">
+    <div class="section-title">Historique de session</div>
+    <div class="history-grid" id="historyGrid"></div>
+  </div>
+
+  <!-- COMMENTS FROM JSON -->
+  <div class="comments-header">
+    <div class="section-title" style="margin:0; flex:1;">Commentaires du dataset</div>
+    <button class="btn-load" onclick="toggleComments()" id="btnLoad">Charger →</button>
+  </div>
+  <div class="comments-list" id="commentsList" style="display:none;"></div>
+
+  <footer>
+    <span>SentimentMCP v1.0</span>
+    <span>Bridge → http://localhost:8765</span>
+    <span id="footerTime"></span>
+  </footer>
+</div>
+
+<script>
+  const API = 'http://localhost:8765';
+  let history = [];
+  let commentsLoaded = false;
+  let commentsVisible = false;
+
+  // === STATUS CHECK ===
+  async function checkStatus() {
+    const badge = document.getElementById('statusBadge');
+    const text = document.getElementById('statusText');
+    try {
+      const r = await fetch(`${API}/health`, { signal: AbortSignal.timeout(2000) });
+      if (r.ok) {
+        badge.classList.remove('offline');
+        text.textContent = 'Serveur connecté';
+        document.getElementById('analyzeBtn').disabled = false;
+        return true;
+      }
+    } catch {}
+    badge.classList.add('offline');
+    text.textContent = 'Serveur hors ligne — lancez web_bridge.py';
+    document.getElementById('analyzeBtn').disabled = true;
+    return false;
+  }
+
+  // === CHAR COUNT ===
+  document.getElementById('inputText').addEventListener('input', function() {
+    document.getElementById('charCount').textContent = this.value.length;
+  });
+
+  // === ANALYZE ===
+  async function analyzeText() {
+    const text = document.getElementById('inputText').value.trim();
+    if (!text) return;
+
+    const btn = document.getElementById('analyzeBtn');
+    btn.classList.add('loading');
+    btn.disabled = true;
+
+    const t0 = Date.now();
+
+    try {
+      const r = await fetch(`${API}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      const json = await r.json();
+      const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
+
+      if (json.success) {
+        showResult(json.data, text, elapsed);
+        addToHistory(text, json.data.sentiment);
+      } else {
+        showError(json.error || 'Erreur inconnue');
+      }
+    } catch (e) {
+      showError('Impossible de contacter le serveur. Vérifiez que web_bridge.py est lancé.');
+    }
+
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+
+  // === SHOW RESULT ===
+  function showResult(data, text, elapsed) {
+    const card = document.getElementById('resultCard');
+    const sentiment = (data.sentiment || 'inconnu').toLowerCase();
+
+    const icons = { positif: '😊', negatif: '😠', neutre: '😐', inconnu: '❓' };
+    const classes = { positif: 'positif', negatif: 'negatif', neutre: 'neutre', inconnu: 'neutre' };
+
+    card.className = `result-card ${classes[sentiment] || 'neutre'}`;
+    document.getElementById('resultIcon').textContent = icons[sentiment] || '❓';
+    document.getElementById('resultLabel').textContent = sentiment.toUpperCase();
+    document.getElementById('resultText').textContent = `"${text.substring(0, 120)}${text.length > 120 ? '…' : ''}"`;
+    document.getElementById('resultJustification').textContent = data.justification || data.raw || '—';
+    document.getElementById('resultModel').textContent = 'gemma4:31b-cloud';
+    document.getElementById('resultTime').textContent = `${elapsed}s`;
+    card.style.display = 'block';
+  }
+
+  function showError(msg) {
+    const card = document.getElementById('resultCard');
+    card.className = 'result-card error';
+    document.getElementById('resultIcon').textContent = '⚠️';
+    document.getElementById('resultLabel').textContent = 'ERREUR';
+    document.getElementById('resultText').textContent = msg;
+    document.getElementById('resultJustification').textContent = '';
+    document.getElementById('resultModel').textContent = '—';
+    document.getElementById('resultTime').textContent = '—';
+    card.style.display = 'block';
+  }
+
+  // === HISTORY ===
+  function addToHistory(text, sentiment) {
+    history.unshift({ text, sentiment });
+    if (history.length > 10) history.pop();
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const section = document.getElementById('historySection');
+    const grid = document.getElementById('historyGrid');
+    if (history.length === 0) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    grid.innerHTML = history.map((h, i) => {
+      const s = (h.sentiment || '').toLowerCase();
+      return `
+        <div class="history-item" onclick="loadFromHistory(${i})">
+          <div class="history-text">${escHtml(h.text)}</div>
+          <span class="history-badge badge-${s || 'pending'}">${s || '…'}</span>
+        </div>`;
+    }).join('');
+  }
+
+  function loadFromHistory(i) {
+    document.getElementById('inputText').value = history[i].text;
+    document.getElementById('charCount').textContent = history[i].text.length;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // === COMMENTS ===
+  async function toggleComments() {
+    const list = document.getElementById('commentsList');
+    const btn = document.getElementById('btnLoad');
+
+    if (commentsVisible) {
+      list.style.display = 'none';
+      commentsVisible = false;
+      btn.textContent = 'Charger →';
+      return;
+    }
+
+    if (!commentsLoaded) {
+      btn.textContent = 'Chargement…';
+      try {
+        const r = await fetch(`${API}/comments`);
+        const data = await r.json();
+        list.innerHTML = data.map(c => `
+          <div class="comment-card" onclick="useComment('${escJs(c.Commentaires)}')">
+            <div class="comment-author">@${escHtml(c.Auteur)} · #${c.commentaire_id}</div>
+            <div class="comment-text">${escHtml(c.Commentaires)}</div>
+            <div class="comment-meta">👍 ${c.Likes} likes · Cliquer pour analyser</div>
+          </div>`).join('');
+        commentsLoaded = true;
+      } catch {
+        list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:16px;">Impossible de charger les commentaires.</div>';
+      }
+    }
+
+    list.style.display = 'flex';
+    commentsVisible = true;
+    btn.textContent = 'Masquer ↑';
+  }
+
+  function useComment(text) {
+    document.getElementById('inputText').value = text;
+    document.getElementById('charCount').textContent = text.length;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // === UTILS ===
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function escJs(s) {
+    return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n');
+  }
+
+  // === KEYBOARD SHORTCUT ===
+  document.getElementById('inputText').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) analyzeText();
+  });
+
+  // === FOOTER CLOCK ===
+  function updateClock() {
+    document.getElementById('footerTime').textContent = new Date().toLocaleTimeString('fr-FR');
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // === INIT ===
+  checkStatus();
+  setInterval(checkStatus, 10000);
+</script>
+</body>
+</html>
