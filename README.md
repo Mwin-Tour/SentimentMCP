@@ -218,7 +218,7 @@ Le modèle retourne toujours un JSON structuré
 
 ## 📄 Licence
 
-© 2025 [SOME Mwin-Tour Yves Roland]. Tous droits réservés.
+© 2025 [Somé Mwin-Tour Yves Roland]. Tous droits réservés.
 
 Ce projet est privé et protégé par le droit d'auteur. 
 Aucune utilisation, modification ou distribution n'est autorisée sans permission écrite.
