@@ -215,3 +215,10 @@ Le modèle retourne toujours un JSON structuré
 
 ---
 ![alt text](screenshot/image-1.png)
+
+## 📄 Licence
+
+© 2025 [SOME Mwin-Tour Yves Roland]. Tous droits réservés.
+
+Ce projet est privé et protégé par le droit d'auteur. 
+Aucune utilisation, modification ou distribution n'est autorisée sans permission écrite.
