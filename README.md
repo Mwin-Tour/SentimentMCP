@@ -45,21 +45,7 @@ Il combine deux composants :
 
 ## Architecture du projet
 
-```
-Navigateur (index.html)
-        │
-        │  HTTP (port 8765)
-        ▼
-  web_bridge.py          ← Pont HTTP Python
-        │
-        │  Appel local
-        ▼
-  sentiment_tools.py     ← Client Ollama
-        │
-        │  HTTP (port 11434)
-        ▼
-    Ollama (deepseek-v3.1)
-```
+![alt text](screenshot/image-2.png)
 
 ---
 
