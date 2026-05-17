@@ -55,7 +55,7 @@ Il combine deux composants :
 |-------|-----------------|---------|
 | Python | 3.10+ | Serveur MCP + bridge HTTP |
 | [Ollama](https://ollama.com) | Dernière version | Moteur LLM local |
-| Modèle deepseek | `deepseek-v3.1:671b-cloud` | Analyse de sentiment |
+| Modèle deepseek | `gemma4:31b-cloud` | Analyse de sentiment |
 
 ---
 
